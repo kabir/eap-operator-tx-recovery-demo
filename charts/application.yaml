@@ -1,0 +1,7 @@
+apiVersion: wildfly.org/v1alpha1
+kind: WildFlyServer
+metadata:
+  name: eap7-app
+spec:
+  applicationImage: eap7-app:latest
+  replicas: 1

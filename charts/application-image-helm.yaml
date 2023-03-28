@@ -1,0 +1,13 @@
+build:
+  uri: https://github.com/kabir/eap-operator-tx-recovery-demo
+  s2i:
+    featurePacks:
+      - org.jboss.eap:eap-datasources-galleon-pack:7.4.0.GA-redhat-00003
+    galleonLayers:
+      - cloud-server
+      - postgresql-datasource
+  env:
+    - name: POSTGRESQL_DRIVER_VERSION
+      value: '42.2.19'
+deploy:
+  enabled: false
