@@ -24,6 +24,7 @@ public class DemoEndpoint {
     @Path("${value}")
     @Consumes(MediaType.TEXT_PLAIN)
     public Response send(@PathParam("value") String value) {
+        System.out.println("Received value: " + value);
         return demoBean.addEntryAndWait(value);
     }
 

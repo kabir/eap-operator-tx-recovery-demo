@@ -20,15 +20,16 @@ public class DemoBean {
 
     @Transactional
     Response addEntryAndWait(String value) {
-        if (hangTxLatch != null) {
-            synchronized (this) {
-                if (hangTxLatch != null) {
-                    throw new IllegalStateException("We are already saving an entry and waiting");
-                }
+        synchronized (this) {
+            if (hangTxLatch != null) {
+                throw new IllegalStateException("We are already saving an entry and waiting");
+            } else {
+                System.out.println("Creating latch");
                 hangTxLatch = new CountDownLatch(1);
             }
         }
         try {
+            System.out.println("Waiting for the latch to be released....");
             hangTxLatch.await();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -36,16 +37,19 @@ public class DemoBean {
             Response.status(Response.Status.REQUEST_TIMEOUT).build();
         }
 
+        System.out.println("Persisting entity with value: " + value);
         DemoEntity entity = new DemoEntity();
         entity.setValue(value);
         em.persist(entity);
 
+        System.out.println("Persisted");
         return Response.ok().build();
     }
 
     public void release() {
         synchronized (this) {
-            if (hangTxLatch == null) {
+            if (hangTxLatch != null) {
+                System.out.println("Releasing latch");
                 hangTxLatch.countDown();
                 hangTxLatch = null;
             }
