@@ -99,14 +99,12 @@ public class DemoBean {
                                     hangTxLatch.countDown();
                                 }
 
-                                synchronized (DemoBean.class) {
-                                    try {
-                                        if (Files.exists(path)) {
-                                            Files.delete(path);
-                                        }
-                                    } catch (IOException e) {
-                                        e.printStackTrace();
+                                try {
+                                    if (Files.exists(path)) {
+                                        Files.delete(path);
                                     }
+                                } catch (IOException e) {
+                                    e.printStackTrace();
                                 }
                             }
                         }
@@ -157,7 +155,7 @@ public class DemoBean {
     @Transactional
     Response addEntryInTxAndWait(String value) {
         try {
-            System.out.println("Waiting for the latch to be released....");
+            System.out.println("Transaction started. Waiting for the latch to be released before persisting and committing the transaction....");
             hangTxLatch.await();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
