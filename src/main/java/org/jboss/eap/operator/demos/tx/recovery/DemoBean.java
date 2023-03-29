@@ -58,9 +58,6 @@ public class DemoBean {
             }
             path = path.toAbsolutePath().normalize();
 
-            if (Files.exists(path)) {
-                throw new IllegalStateException("The directory " + path + " exists. Please specify an empty directory");
-            }
             Files.createDirectories(path);
             System.out.println("Using the directory " + path + ". Initialising the watch service...");
 
