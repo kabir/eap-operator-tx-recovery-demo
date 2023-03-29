@@ -39,7 +39,6 @@ public class DemoBean {
 
     private final ExecutorService transactionExecutor = Executors.newSingleThreadExecutor();
     private final ExecutorService watcherExecutor = Executors.newSingleThreadExecutor();
-    private volatile Path releaseMarker;
 
 
 
@@ -61,7 +60,7 @@ public class DemoBean {
             Files.createDirectories(path);
             System.out.println("Using the directory " + path + ". Initialising the watch service...");
 
-            releaseMarker = path.resolve(RELEASE_MARKER_NAME);
+            Path releaseMarker = path.resolve(RELEASE_MARKER_NAME);
 
             System.out.println("==========================================================================================");
             System.out.println("Once you have tried to add an entry, rsh into the pod and release the transaction by running 'touch " + path + "'");
@@ -94,16 +93,27 @@ public class DemoBean {
                             Path path = we.context();
                             System.out.println("Watcher found file created at: " + path);
                             if (path.endsWith(RELEASE_MARKER_NAME)) {
-                                System.out.println("File name matches, looking for latch to release.");
+                                System.out.println("File name matches, looking for latch to release transaction...");
+
                                 if (hangTxLatch != null) {
+                                    hangTxLatch.countDown();
+                                }
+
+                                synchronized (DemoBean.class) {
                                     try {
-                                        Files.delete(path);
+                                        if (Files.exists(path)) {
+                                            Files.delete(path);
+                                        }
                                     } catch (IOException e) {
                                         e.printStackTrace();
                                     }
-                                    hangTxLatch.countDown();
                                 }
                             }
+                        }
+
+                        boolean valid = key.reset();
+                        if (!valid) {
+                            break;
                         }
                     }
                 }
@@ -125,7 +135,7 @@ public class DemoBean {
             return Response.status(Response.Status.BAD_REQUEST.getStatusCode(), "Null value").build();
         }
 
-        synchronized (RELEASE_MARKER_NAME) {
+        synchronized (DemoBean.class) {
             if (hangTxLatch != null) {
                 return Response.status(
                                 Response.Status.CONFLICT.getStatusCode(),
