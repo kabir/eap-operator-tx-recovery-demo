@@ -2,6 +2,8 @@ package org.jboss.eap.operator.demos.tx.recovery;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
+import javax.annotation.Resource;
+import javax.enterprise.concurrent.ManagedExecutorService;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 import javax.persistence.EntityManager;
@@ -37,8 +39,10 @@ public class DemoBean {
     @Inject
     DemoBean internalDelegate;
 
-    private final ExecutorService transactionExecutor = Executors.newSingleThreadExecutor();
-    private final ExecutorService watcherExecutor = Executors.newSingleThreadExecutor();
+    @Resource
+    private ManagedExecutorService executor;
+//    private final ExecutorService transactionExecutor = Executors.newSingleThreadExecutor();
+//    private final ExecutorService watcherExecutor = Executors.newSingleThreadExecutor();
 
 
 
@@ -70,7 +74,7 @@ public class DemoBean {
             WatchService watcher = FileSystems.getDefault().newWatchService();
             WatchKey key = path.register(watcher, StandardWatchEventKinds.ENTRY_CREATE);
 
-            watcherExecutor.submit(new Runnable() {
+            executor.submit(new Runnable() {
                 @Override
                 public void run() {
                     while (true) {
@@ -122,12 +126,6 @@ public class DemoBean {
         }
     }
 
-    @PreDestroy
-    public void stop() {
-        watcherExecutor.shutdown();
-        transactionExecutor.shutdown();
-    }
-
     Response addEntryToRunInTransactionInBackground(String value) {
         if (value == null) {
             return Response.status(Response.Status.BAD_REQUEST.getStatusCode(), "Null value").build();
@@ -141,7 +139,7 @@ public class DemoBean {
                         .build();
             }
             hangTxLatch = new CountDownLatch(1);
-            transactionExecutor.submit(new Runnable() {
+            executor.submit(new Runnable() {
                 @Override
                 public void run() {
                     internalDelegate.addEntryInTxAndWait(value);
