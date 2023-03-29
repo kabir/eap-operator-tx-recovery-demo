@@ -13,7 +13,7 @@ import java.util.stream.Collectors;
 @ApplicationScoped
 public class DemoBean {
 
-    @PersistenceContext(unitName = "example")
+    @PersistenceContext(unitName = "demo")
     EntityManager em;
 
     volatile CountDownLatch hangTxLatch;

@@ -5,12 +5,12 @@ metadata:
 spec:
   applicationImage: eap7-app:latest
   replicas: 1
-  storage:
-    volumeClaimTemplate:
-      spec:
-        resources:
-          requests:
-            storage: 1Gi
+#  storage:
+#    volumeClaimTemplate:
+#      spec:
+#        resources:
+#          requests:
+#            storage: 1Gi
   env:
     # Env vars to connect to PostgreSQL DB
     - name: POSTGRESQL_DATABASE
@@ -20,6 +20,6 @@ spec:
     - name: POSTGRESQL_PASSWORD
       value: admin
     - name: POSTGRESQL_DATASOURCE
-      value: qs-ds
+      value: demo-ds
     - name: POSTGRESQL_SERVICE_HOST
       value: postgresql
