@@ -21,7 +21,7 @@ public class DemoEndpoint {
     DemoBean demoBean;
 
     @POST
-    @Path("${value}")
+    @Path("/${value}")
     @Consumes(MediaType.TEXT_PLAIN)
     public Response send(@PathParam("value") String value) {
         System.out.println("Received value: " + value);
@@ -30,7 +30,7 @@ public class DemoEndpoint {
 
     @GET
     @Consumes(MediaType.TEXT_PLAIN)
-    @Path("release")
+    @Path("/release")
     public void unblock(@PathParam("value") String value) {
         demoBean.release();
     }
