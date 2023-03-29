@@ -64,7 +64,7 @@ public class DemoBean {
             releaseMarker = path.resolve(RELEASE_MARKER_NAME);
 
             System.out.println("==========================================================================================");
-            System.out.println("Once you have tried to add an entry, rsh into the pod and release the transaction by running '`'touch " + path + "'");
+            System.out.println("Once you have tried to add an entry, rsh into the pod and release the transaction by running 'touch " + path + "'");
             System.out.println("==========================================================================================");
 
 
