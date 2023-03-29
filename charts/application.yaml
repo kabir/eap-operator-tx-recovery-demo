@@ -23,3 +23,5 @@ spec:
       value: demo-ds
     - name: POSTGRESQL_SERVICE_HOST
       value: postgresql
+    - name: TX_RELEASE_DIRECTORY
+      value: /home/jboss

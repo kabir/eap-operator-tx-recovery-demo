@@ -25,14 +25,8 @@ public class DemoEndpoint {
     @Consumes(MediaType.TEXT_PLAIN)
     public Response send(@PathParam("value") String value) {
         System.out.println("Received value: " + value);
-        return demoBean.addEntryAndWait(value);
-    }
 
-    @GET
-    @Consumes(MediaType.TEXT_PLAIN)
-    @Path("release")
-    public void unblock(@PathParam("value") String value) {
-        demoBean.release();
+        return demoBean.addEntryToRunInTransactionInBackground(value);
     }
 
     @GET
