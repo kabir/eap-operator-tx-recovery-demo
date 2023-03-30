@@ -1,7 +1,6 @@
 package org.jboss.eap.operator.demos.tx.recovery;
 
 import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
 import javax.annotation.Resource;
 import javax.enterprise.concurrent.ManagedExecutorService;
 import javax.enterprise.context.ApplicationScoped;
@@ -9,6 +8,8 @@ import javax.inject.Inject;
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import javax.persistence.TypedQuery;
+import javax.transaction.Synchronization;
+import javax.transaction.TransactionSynchronizationRegistry;
 import javax.transaction.Transactional;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
@@ -22,8 +23,6 @@ import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -41,10 +40,9 @@ public class DemoBean {
 
     @Resource
     private ManagedExecutorService executor;
-//    private final ExecutorService transactionExecutor = Executors.newSingleThreadExecutor();
-//    private final ExecutorService watcherExecutor = Executors.newSingleThreadExecutor();
 
-
+    @Resource
+    TransactionSynchronizationRegistry txSyncRegistry;
 
     @PostConstruct
     public void initialiseWatcher() {
@@ -152,6 +150,9 @@ public class DemoBean {
     // Called internally by the transactionExecutor Runnable
     @Transactional
     Response addEntryInTxAndWait(String value) {
+
+        txSyncRegistry.registerInterposedSynchronization(new Callback());
+
         try {
             System.out.println("Transaction started. Waiting for the latch to be released before persisting and committing the transaction....");
             hangTxLatch.await();
@@ -168,10 +169,6 @@ public class DemoBean {
 
         System.out.println("Persisted");
 
-        // Not totally correct but as this is a low traffic demo it should be ok.
-        synchronized (DemoBean.class) {
-            hangTxLatch = null;
-        }
         return Response.ok().build();
     }
 
@@ -180,5 +177,22 @@ public class DemoBean {
         TypedQuery<DemoEntity> query = em.createQuery("SELECT d from DemoEntity d", DemoEntity.class);
         List<String> values = query.getResultList().stream().map(v -> v.getValue()).collect(Collectors.toList());
         return values;
+    }
+
+    private class Callback implements Synchronization {
+
+        @Override
+        public void beforeCompletion() {
+
+        }
+
+        @Override
+        public void afterCompletion(int status) {
+            synchronized (DemoBean.class) {
+                if (hangTxLatch != null) {
+                    hangTxLatch = null;
+                }
+            }
+        }
     }
 }
