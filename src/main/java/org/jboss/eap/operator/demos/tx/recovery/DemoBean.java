@@ -151,19 +151,21 @@ public class DemoBean {
         System.out.println("Transaction started. Registering Tx Synchronization");
         txSyncRegistry.registerInterposedSynchronization(new Callback());
 
-        try {
-            System.out.println("Waiting for the latch to be released before persisting and committing the transaction....");
-            hangTxLatch.await();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-
         System.out.println("Persisting entity with value: " + value);
         DemoEntity entity = new DemoEntity();
         entity.setValue(value);
         em.persist(entity);
 
-        System.out.println("Persisted");
+        try {
+            System.out.println("Waiting for the latch to be released before committing the transaction....");
+            hangTxLatch.await();
+            System.out.println("Latch was released!");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            System.out.println("Wait for latch was interrupted");
+        }
+
+
     }
 
     @Transactional
