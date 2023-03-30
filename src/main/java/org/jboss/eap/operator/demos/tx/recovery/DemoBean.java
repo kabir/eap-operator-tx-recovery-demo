@@ -62,8 +62,6 @@ public class DemoBean {
             Files.createDirectories(path);
             System.out.println("Using the directory " + path + ". Initialising the watch service...");
 
-            Path releaseMarker = path.resolve(RELEASE_MARKER_NAME);
-
             System.out.println("==========================================================================================");
             System.out.println("Once you have tried to add an entry, rsh into the pod and release the transaction by running 'touch " + path + "'");
             System.out.println("==========================================================================================");
@@ -97,9 +95,7 @@ public class DemoBean {
                             if (path.endsWith(RELEASE_MARKER_NAME)) {
                                 System.out.println("File name matches, looking for latch to release transaction...");
 
-                                if (hangTxLatch != null) {
-                                    hangTxLatch.countDown();
-                                }
+                                freeLatch();
 
                                 try {
                                     if (Files.exists(path)) {
@@ -146,7 +142,7 @@ public class DemoBean {
                 internalDelegate.addEntryInTxAndWait(value);
             }
         });
-        return Response.accepted().build();
+        return Response.accepted().entity(System.getenv().get("HOSTNAME")).build();
     }
 
     // Called internally by the transactionExecutor Runnable
@@ -181,6 +177,17 @@ public class DemoBean {
         return values;
     }
 
+    private void freeLatch() {
+        synchronized (DemoBean.class) {
+            System.out.println("Looking for latch");
+            if (hangTxLatch != null) {
+                System.out.println("Resetting latch");
+                hangTxLatch.countDown();
+                hangTxLatch = null;
+            }
+        }
+    }
+
     private class Callback implements Synchronization {
 
         @Override
@@ -190,17 +197,9 @@ public class DemoBean {
 
         @Override
         public void afterCompletion(int status) {
-            System.out.println("Attempting to clear latch in Tx Synchronization.");
+            System.out.println("Attempting to clear latch in Tx Synchronization. Status: " + status);
             synchronized (DemoBean.class) {
-                if (hangTxLatch != null) {
-                    System.out.println("Clearing latch.");
-                    if (hangTxLatch.getCount() > 0) {
-                        hangTxLatch.countDown();
-                    }
-                    hangTxLatch = null;
-                } else {
-                    System.out.println("No latch.");
-                }
+                freeLatch();
             }
         }
     }
