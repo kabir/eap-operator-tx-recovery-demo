@@ -137,24 +137,26 @@ public class DemoBean {
                         .build();
             }
             hangTxLatch = new CountDownLatch(1);
-            executor.submit(new Runnable() {
-                @Override
-                public void run() {
-                    internalDelegate.addEntryInTxAndWait(value);
-                }
-            });
         }
+        System.out.println("Submitting background task to store the entity in a long transaction");
+        executor.submit(new Runnable() {
+            @Override
+            public void run() {
+                System.out.println("Calling Transactional method from background task");
+                internalDelegate.addEntryInTxAndWait(value);
+            }
+        });
         return Response.accepted().build();
     }
 
     // Called internally by the transactionExecutor Runnable
     @Transactional
     Response addEntryInTxAndWait(String value) {
-
+        System.out.println("Transaction started. Registering Tx Synchronization");
         txSyncRegistry.registerInterposedSynchronization(new Callback());
 
         try {
-            System.out.println("Transaction started. Waiting for the latch to be released before persisting and committing the transaction....");
+            System.out.println("Waiting for the latch to be released before persisting and committing the transaction....");
             hangTxLatch.await();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -188,9 +190,13 @@ public class DemoBean {
 
         @Override
         public void afterCompletion(int status) {
+            System.out.println("Attempting to clear latch.");
             synchronized (DemoBean.class) {
                 if (hangTxLatch != null) {
+                    System.out.println("Clearing latch.");
                     hangTxLatch = null;
+                } else {
+                    System.out.println("No latch.");
                 }
             }
         }
