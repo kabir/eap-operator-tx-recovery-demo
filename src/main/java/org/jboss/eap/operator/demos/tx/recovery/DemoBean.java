@@ -190,10 +190,13 @@ public class DemoBean {
 
         @Override
         public void afterCompletion(int status) {
-            System.out.println("Attempting to clear latch.");
+            System.out.println("Attempting to clear latch in Tx Synchronization.");
             synchronized (DemoBean.class) {
                 if (hangTxLatch != null) {
                     System.out.println("Clearing latch.");
+                    if (hangTxLatch.getCount() > 0) {
+                        hangTxLatch.countDown();
+                    }
                     hangTxLatch = null;
                 } else {
                     System.out.println("No latch.");
