@@ -177,11 +177,12 @@ public class DemoBean {
 
     private void freeLatch() {
         synchronized (DemoBean.class) {
-            System.out.println("Looking for latch");
             if (hangTxLatch != null) {
                 System.out.println("Resetting latch");
                 hangTxLatch.countDown();
                 hangTxLatch = null;
+            } else {
+                System.out.println("Latch already reset. Nothing to do");
             }
         }
     }

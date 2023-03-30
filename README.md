@@ -76,11 +76,9 @@ touch release
 ```
 This will create a marker file called `release`, which will be picked up by the application. This in turn releases the latch, and completes the transaction.
 
-
-
-
+Play a bit with the above commands to get a feel for the application. 
 
 ## Recovery Scenarios
-
+Now we get to the main point which is to demon
 
 
