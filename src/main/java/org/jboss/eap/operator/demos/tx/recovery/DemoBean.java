@@ -147,7 +147,7 @@ public class DemoBean {
 
     // Called internally by the transactionExecutor Runnable
     @Transactional
-    Response addEntryInTxAndWait(String value) {
+    void addEntryInTxAndWait(String value) {
         System.out.println("Transaction started. Registering Tx Synchronization");
         txSyncRegistry.registerInterposedSynchronization(new Callback());
 
@@ -156,8 +156,6 @@ public class DemoBean {
             hangTxLatch.await();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            System.out.println("Thread was interrupted");
-            Response.status(Response.Status.REQUEST_TIMEOUT).build();
         }
 
         System.out.println("Persisting entity with value: " + value);
@@ -166,8 +164,6 @@ public class DemoBean {
         em.persist(entity);
 
         System.out.println("Persisted");
-
-        return Response.ok().build();
     }
 
     @Transactional
