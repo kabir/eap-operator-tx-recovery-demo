@@ -126,14 +126,14 @@ public class DemoBean {
 
     Response addEntryToRunInTransactionInBackground(String value) {
         if (value == null) {
-            return Response.status(Response.Status.BAD_REQUEST.getStatusCode(), "Null value").build();
+            System.err.println("Null value.");
+            return Response.status(Response.Status.BAD_REQUEST.getStatusCode()).build();
         }
 
         synchronized (DemoBean.class) {
             if (hangTxLatch != null) {
-                return Response.status(
-                                Response.Status.CONFLICT.getStatusCode(),
-                                "There is currently a long transaction in process. Please release the existing one.")
+                System.err.println("There is currently a long transaction in process. Please release the existing one.");
+                return Response.status(Response.Status.CONFLICT.getStatusCode())
                         .build();
             }
             hangTxLatch = new CountDownLatch(1);
