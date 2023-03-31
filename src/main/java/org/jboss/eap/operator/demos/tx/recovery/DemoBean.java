@@ -12,7 +12,13 @@ import javax.transaction.Synchronization;
 import javax.transaction.TransactionSynchronizationRegistry;
 import javax.transaction.Transactional;
 import javax.ws.rs.core.Response;
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,6 +35,8 @@ import java.util.stream.Collectors;
 public class DemoBean {
 
     private static final String RELEASE_MARKER_NAME = "release";
+
+    private volatile Path markerDir;
 
     @PersistenceContext(unitName = "demo")
     EntityManager em;
@@ -49,74 +57,83 @@ public class DemoBean {
 
         try {
             String value = System.getenv().get("TX_RELEASE_DIRECTORY");
-            Path path = null;
             if (value != null) {
                 System.out.println("TX_RELEASE_DIRECTORY variable specified. Using to determine directory.");
-                path = Paths.get(value);
+                markerDir = Paths.get(value);
             } else {
                 System.out.println("TX_RELEASE_DIRECTORY variable not specified. Using a temporary directory");
-                path = Files.createTempDirectory("xxx");
+                markerDir = Files.createTempDirectory("xxx");
             }
-            path = path.toAbsolutePath().normalize();
+            markerDir = markerDir.toAbsolutePath().normalize();
 
-            Files.createDirectories(path);
-            System.out.println("Using the directory " + path + ". Initialising the watch service...");
+            Files.createDirectories(markerDir);
+            System.out.println("Using the directory " + markerDir + ". Initialising the watch service...");
 
             System.out.println("==========================================================================================");
-            System.out.println("Once you have tried to add an entry, rsh into the pod and release the transaction by running 'touch " + path + "'");
+            System.out.println("Once you have tried to add an entry, rsh into the pod and release the transaction by running 'touch " + markerDir + "'");
             System.out.println("==========================================================================================");
 
 
             WatchService watcher = FileSystems.getDefault().newWatchService();
-            WatchKey key = path.register(watcher, StandardWatchEventKinds.ENTRY_CREATE);
+            markerDir.register(watcher, StandardWatchEventKinds.ENTRY_CREATE);
+            executor.submit(new FileWatcher(watcher));
 
-            executor.submit(new Runnable() {
-                @Override
-                public void run() {
-                    while (true) {
-                        WatchKey key;
-                        try {
-                            key = watcher.take();
-                        } catch (InterruptedException e) {
-                            return;
-                        }
-                        for (WatchEvent<?> event : key.pollEvents()) {
-                            WatchEvent.Kind<?> kind = event.kind();
-
-                            if (kind == StandardWatchEventKinds.OVERFLOW) {
-                                // OVERFLOW can happen even if not the event we said we were interested in
-                                continue;
-                            }
-
-                            // File name is context of event
-                            WatchEvent<Path> we = (WatchEvent<Path>) event;
-                            Path path = we.context();
-                            System.out.println("Watcher found file created at: " + path);
-                            if (path.endsWith(RELEASE_MARKER_NAME)) {
-                                System.out.println("File name matches, looking for latch to release transaction...");
-
-                                freeLatch();
-
-                                try {
-                                    if (Files.exists(path)) {
-                                        Files.delete(path);
-                                    }
-                                } catch (IOException e) {
-                                    e.printStackTrace();
-                                }
-                            }
-                        }
-
-                        boolean valid = key.reset();
-                        if (!valid) {
-                            break;
-                        }
-                    }
-                }
-            });
+            executor.submit(new HttpReleasePoller());
 
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    private class FileWatcher implements Runnable {
+
+        private final WatchService watcher;
+
+        public FileWatcher(WatchService watcher) {
+            this.watcher = watcher;
+        }
+
+        @Override
+        public void run() {
+            while (true) {
+                WatchKey key;
+                try {
+                    key = watcher.take();
+                } catch (InterruptedException e) {
+                    return;
+                }
+                for (WatchEvent<?> event : key.pollEvents()) {
+                    WatchEvent.Kind<?> kind = event.kind();
+
+                    if (kind == StandardWatchEventKinds.OVERFLOW) {
+                        // OVERFLOW can happen even if not the event we said we were interested in
+                        continue;
+                    }
+
+                    // File name is context of event
+                    WatchEvent<Path> we = (WatchEvent<Path>) event;
+                    Path path = we.context();
+                    System.out.println("Watcher found file created at: " + path);
+                    if (path.endsWith(RELEASE_MARKER_NAME)) {
+                        System.out.println("File name matches, looking for latch to release transaction...");
+
+                        freeLatch();
+
+                        try {
+                            if (Files.exists(path)) {
+                                Files.delete(path);
+                            }
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
+
+                boolean valid = key.reset();
+                if (!valid) {
+                    break;
+                }
+            }
         }
     }
 
@@ -199,6 +216,53 @@ public class DemoBean {
             System.out.println("Attempting to clear latch in Tx Synchronization. Status: " + status);
             synchronized (DemoBean.class) {
                 freeLatch();
+            }
+        }
+    }
+
+    private class HttpReleasePoller implements Runnable {
+        private final URL url;
+
+        public HttpReleasePoller() {
+            String hostName = System.getenv().get("HOSTNAME");
+            try {
+                this.url = new URL("http://eap7-app-release-server/release/" + hostName);
+            } catch (MalformedURLException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        @Override
+        public void run() {
+            while (true) {
+                try {
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("GET");
+                    int status = conn.getResponseCode();
+                    try (BufferedReader in = new BufferedReader(
+                            new InputStreamReader(conn.getInputStream()))) {
+                        String inputLine;
+                        StringBuffer content = new StringBuffer();
+                        while ((inputLine = in.readLine()) != null) {
+                            content.append(inputLine);
+                        }
+                        System.out.println("----> read content '" + content.toString().trim() + "'");
+                        if (content.toString().trim().equals("1")) {
+                            System.out.println("Writing marker to release lock");
+                            Path marker = markerDir.resolve(RELEASE_MARKER_NAME);
+                            Files.write(marker, "1".getBytes(StandardCharsets.UTF_8));
+                        }
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+
+                try {
+
+                    Thread.sleep(5000);
+                } catch (InterruptedException e) {
+                    return;
+                }
             }
         }
     }
