@@ -1,5 +1,6 @@
 package org.jboss.eap.operator.demos.tx.recovery.releaseserver;
 
+import javax.inject.Inject;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
@@ -7,9 +8,6 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
 
 /**
  * Since we can't rsh into a terminating pod, we host this simple server to store the release markers. The main
@@ -21,25 +19,24 @@ import java.util.Set;
  */
 @Path("/release")
 public class ReleaseServerEndpoint {
-    private static final String POD_BASE_NAME = "eap7-app-";
 
-    Set<String> releasedPods = Collections.synchronizedSet(new HashSet<>());
+
+
+    @Inject
+    ReleasedPodsRegistry releasedPodsRegistry;
 
     @POST
     @Path("{podName}")
     @Consumes(MediaType.TEXT_PLAIN)
-    public void send(@PathParam("podName") int podNumber) {
-        String podName = POD_BASE_NAME + podNumber;
-        System.out.println("Storing that pod is released: " + podName);
-        releasedPods.add(podName);
+    public void send(@PathParam("podName") String pod) {
+        releasedPodsRegistry.storePodReleased(pod);
     }
 
     @GET
     @Path("{podName}")
     @Produces(MediaType.TEXT_PLAIN)
     public int isReleased(@PathParam("podName") String podName) {
-        boolean released = releasedPods.remove(podName);
-        System.out.println("Checked if " + podName + " was released: " + released);
+        boolean released = releasedPodsRegistry.isReleased(podName);
         return released ? 1 : 0;
     }
 }

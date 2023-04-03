@@ -40,7 +40,7 @@ public class DemoBean {
 
     @Resource
     TransactionSynchronizationRegistry txSyncRegistry;
-    
+
     Response addEntryToRunInTransactionInBackground(String value) {
         if (value == null) {
             System.err.println("Null value.");
