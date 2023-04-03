@@ -1,5 +1,6 @@
 package org.jboss.eap.operator.demos.tx.recovery;
 
+import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
 import javax.enterprise.concurrent.ManagedExecutorService;
 import javax.enterprise.context.ApplicationScoped;
@@ -40,6 +41,15 @@ public class DemoBean {
 
     @Resource
     TransactionSynchronizationRegistry txSyncRegistry;
+
+    @PostConstruct
+    public void init() {
+        // Clear out any markers for us in the release server so that we start from a blank state
+        HttpReleasePoller releasePoller = new HttpReleasePoller();
+        releasePoller.stop();
+        executor.submit(releasePoller);
+
+    }
 
     Response addEntryToRunInTransactionInBackground(String value) {
         if (value == null) {
@@ -146,7 +156,7 @@ public class DemoBean {
         public void run() {
             System.out.println("Release poller: starting");
             try {
-                while (!stopped.get()) {
+                while (true) {
                     try {
                         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                         conn.setRequestMethod("GET");
@@ -180,6 +190,10 @@ public class DemoBean {
                     try {
                         Thread.sleep(5000);
                     } catch (InterruptedException e) {
+                        return;
+                    }
+
+                    if (stopped.get()) {
                         return;
                     }
                 }

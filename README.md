@@ -55,44 +55,107 @@ This starts the application with one pod. Wait for the pod to be ready before pr
 ## The Application
 The application is quite simple, and made to demonstrate transaction recovery when using the EAP operator on OpenShift.
 
-It exposes the following two REST endpoints with examples how to invoke them:
+It exposes two REST endpoints. One allows us to add new values to the database via a POST request, and the other lets us get the values via a GET request. To make these easier to invoke, the `demo.sh` script is provided. 
 
 ### Getting all entries
 ```shell
-curl http://$(oc get route eap7-app-route --template='{{ .spec.host }}')
+./demo.sh list 
 ```
 Before you have created any entries this will be empty.
 
 ### Creating an entry in a long-running transaction
 ```shell
-curl -X POST -v http://$(oc get route eap7-app-route --template='{{ .spec.host }}')/<value>
+./demo.sh add <value>
 ```
 For example:
 ```shell
-curl -X POST -v http://$(oc get route eap7-app-route --template='{{ .spec.host }}')/hello
+./demo.sh add hello
 ```
 
 In the normal case this will accept the request, resulting in a '202 Accepted' status code. The request will return immediately but spawn a background thread which starts a transaction and then waits for a latch to be released. We will look at how to release the latch in a second. Once the latch is released, it will store an entity in the database. If the transaction is not released and times out, the latch is also released.
 
-Once the latch is released, you may call this message again. 
+Once the latch is released, you may call this endpoint again. If called before the latch is released, you will receive a '409 Conflict' status code.
 
-If called before the latch is released, you will receive a '409 Conflict' status code.
-
-Since the name of the pod we are locking the transaction on is important for later steps, the name of the pos is included in the result of this call. For example `eap7-app-0` indicates that the pod `eap7-app-0` is the one we have to go to to release the latch.
+Since the name of the pod we are locking the transaction on is important for later steps, the name of the pos is included in the result of this call. For example `eap7-app-0` indicates that the pod `eap7-app-0` is the one we have to go to in order to release the latch.
 
 ### Releasing the latch
-You can either go to the pod in the openshift console, and go to the terminal view there. Or you can run `oc rsh <pod name>`. In both cases you should be taken to the `/home/jboss` folder which is being watched by the application.
 
-Once in the `/home/jboss` folder, execute:
+The release server mentioned earlier is used to release the transaction on a pod. 
 
+It is done as follows:
 ```shell
-curl -X POST -v http://$(oc get route eap7-app-route --template='{{ .spec.host }}')/release/0
+./demo.sh release <pod name, or numeric prefix>
 ```
-This will create a marker file called `release`, which will be picked up by the application. This in turn releases the latch, and completes the transaction.
 
-Play a bit with the above commands to get a feel for the application. 
+Since we need to release the latch on the server which is blocked, we need to specify the pod we should work on.
+
+We can either use the full pod name as returned by the `./demo.sh add` command:
+```shell
+./demo.sh release eap7-app-0
+```
+or, we can simply use the numeric suffix:
+```shell
+./demo.sh release 0
+```
 
 ## Recovery Scenarios
-Now we get to the main point which is to demon
+Now we get to the main point which is to demonstrate that the server will remain up until the transaction is released or times out.
+
+All examples expect the following initial state:
+
+* The database is up and running
+* The release server is running
+* The application is running with one pod
+
+## Running transaction blocks shutdown (single node)
+In this example we will have just one application pod. We will start a long running transaction, and then try to scale down the application to zero pods with the operator. The pod should remain running until we have released the transaction.
+
+In a terminal window, run `oc get pods -w`. The output should looks something like:
+```shell
+% oc get pods -w                                
+NAME                                       READY   STATUS    RESTARTS   AGE
+eap7-app-0                                 1/1     Running   0          22m
+eap7-app-release-server-7f9dd7fcf8-p79g5   1/1     Running   0          33m
+postgresql-644b8c898f-t4k64                1/1     Running   0          3h55m
+```
+
+The important pod here is the `eap7-app-0` one.
+
+In another terminal, start a long-running transaction by running `./demo.sh add hello1`:
+```shell
+% ./demo.sh add hello1                                                
+*   Trying 18.189.230.211:80...
+* Connected to eap7-app-route-myproject.apps.cluster-hg5t5.hg5t5.sandbox478.opentlc.com (18.189.230.211) port 80 (#0)
+> POST /hello1 HTTP/1.1
+> Host: eap7-app-route-myproject.apps.cluster-hg5t5.hg5t5.sandbox478.opentlc.com
+> User-Agent: curl/7.86.0
+> Accept: */*
+> 
+* Mark bundle as not supporting multiuse
+< HTTP/1.1 202 Accepted
+< content-type: application/octet-stream
+< content-length: 10
+< date: Mon, 03 Apr 2023 13:20:14 GMT
+< set-cookie: 6408e4ed2f24cda93bbdf4a4c2c125d7=7aa338a543a51ef9c0b44ddaf4ff37f2; path=/; HttpOnly
+< 
+* Connection #0 to host eap7-app-route-myproject.apps.cluster-hg5t5.hg5t5.sandbox478.opentlc.com left intact
+eap7-app-0%
+```
+We see that this got accepted, and that this is running on the pod `eap7-app-0`. As mentioned earlier, this persisting of the entry happens in a background thread on the server and the transaction will not end until it times out (the timeout is 5 minutes) or it is released.
+
+In the OpenShift console, go to 'Installed Operators/JBoss EAP' Then on the 'WildFlyServer' tab, go to `eap7-app' and reduce the number of pods to zero. 
+
+In terminal containing the output from `oc get pods -w`, note that the `eap7-app-0` pods remains at `READY=1/1`.
+
+In the other terminal run `./demo.sh release eap7-app-0` to release the transaction. 
+
+In the terminal containing the output from `oc get pods -w`, you should now see that the `eap7-app-0` pod is allowed to scale down.
+
+Before moving on to the next example, make sure the pod is up and running again
+
+
+# TODO the above example doesn't seem to work properly so this can't work either 
+
+## Running transaction blocks shutdown and is freed when Tx times out 
 
 
