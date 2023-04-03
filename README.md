@@ -29,6 +29,20 @@ The above will take some time to complete. Once the output of `oc get build -w` 
 
 **Note:** The name `eap7-app` is important since it becomes the basis for the name of the image stream referenced from application.yaml, the names of the pods and other things. 
 
+## Deploy the Release Server
+
+As we will see, our application is set up to leave the transaction running until it is released. We need a way to release those transactions. Since we will be suspending our application to demonstrate transaction recovery, and when the server is suspended it does not accept requests, we need a mechanism to do so external to the application.
+
+In our case we deploy a 'release server' application to deal with the releasing of the transaction.
+
+To deploy the release server, run:
+```shell
+oc apply -f release-server.yaml
+```
+This will install the release server and expose the route `eap7-app-release-server`. We will make POST requests to this route later to release the transactions.
+
+
+
 ## Deploy the Application
 
 To deploy the application, run:

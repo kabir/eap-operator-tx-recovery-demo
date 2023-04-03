@@ -20,10 +20,21 @@ spec:
       labels:
         deployment: eap7-app-release-server
     spec:
+      # securityContext is for OpenShift 4.14 onwards
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: eap7-app-release-server
+          # securityContext is for OpenShift 4.14 onwards
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           image: >-
-            eap7-app:latest
+            image-registry.openshift-image-registry.svc:5000/myproject/eap7-app:latest
           ports:
             - containerPort: 8080
               protocol: TCP
