@@ -1,6 +1,5 @@
 package org.jboss.eap.operator.demos.tx.recovery;
 
-import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
 import javax.enterprise.concurrent.ManagedExecutorService;
 import javax.enterprise.context.ApplicationScoped;
@@ -19,15 +18,6 @@ import java.net.ConnectException;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardWatchEventKinds;
-import java.nio.file.WatchEvent;
-import java.nio.file.WatchKey;
-import java.nio.file.WatchService;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -35,10 +25,6 @@ import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class DemoBean {
-
-    private static final String RELEASE_MARKER_NAME = "release";
-
-    private volatile Path markerDir;
 
     @PersistenceContext(unitName = "demo")
     EntityManager em;
@@ -48,130 +34,13 @@ public class DemoBean {
     @Inject
     DemoBean internalDelegate;
 
+    // It seems the max number of active tasks here is 2
     @Resource
     private ManagedExecutorService executor;
 
     @Resource
     TransactionSynchronizationRegistry txSyncRegistry;
-
-    @PostConstruct
-    public void initialiseWatcher() {
-
-        try {
-            String value = System.getenv().get("TX_RELEASE_DIRECTORY");
-            if (value != null) {
-                System.out.println("TX_RELEASE_DIRECTORY variable specified. Using to determine directory.");
-                markerDir = Paths.get(value);
-            } else {
-                System.out.println("TX_RELEASE_DIRECTORY variable not specified. Using a temporary directory");
-                markerDir = Files.createTempDirectory("xxx");
-            }
-            markerDir = markerDir.toAbsolutePath().normalize();
-
-            Files.createDirectories(markerDir);
-            System.out.println("Using the directory " + markerDir + ". Initialising the watch service...");
-
-            System.out.println("==========================================================================================");
-            System.out.println("Once you have tried to add an entry, rsh into the pod and release the transaction by running 'touch " + markerDir + "'");
-            System.out.println("==========================================================================================");
-
-
-            System.out.println("=====> Bunch of runnables A");
-            for (int i = 0; i < 10; i++) {
-                final int num = i;
-                executor.submit(new Runnable() {
-                    @Override
-                    public void run() {
-                        System.out.println("Started runnable " + num);
-                        try {
-                            Thread.sleep(2000);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
-                        System.out.println("Completes runnable " + num);
-                    }
-                });
-            }
-
-            WatchService watcher = FileSystems.getDefault().newWatchService();
-            markerDir.register(watcher, StandardWatchEventKinds.ENTRY_CREATE);
-            executor.submit(new FileWatcher(watcher));
-
-
-            System.out.println("=====> Bunch of runnables b");
-            for (int i = 11; i < 20; i++) {
-                final int num = i;
-                executor.submit(new Runnable() {
-                    @Override
-                    public void run() {
-                        System.out.println("Started runnable " + num);
-                        try {
-                            Thread.sleep(2000);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
-                        System.out.println("Completes runnable " + num);
-                    }
-                });
-            }
-
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private class FileWatcher implements Runnable {
-
-        private final WatchService watcher;
-
-        public FileWatcher(WatchService watcher) {
-            this.watcher = watcher;
-        }
-
-        @Override
-        public void run() {
-            while (true) {
-                WatchKey key;
-                try {
-                    key = watcher.take();
-                } catch (InterruptedException e) {
-                    return;
-                }
-                for (WatchEvent<?> event : key.pollEvents()) {
-                    WatchEvent.Kind<?> kind = event.kind();
-
-                    if (kind == StandardWatchEventKinds.OVERFLOW) {
-                        // OVERFLOW can happen even if not the event we said we were interested in
-                        continue;
-                    }
-
-                    // File name is context of event
-                    WatchEvent<Path> we = (WatchEvent<Path>) event;
-                    Path path = we.context();
-                    System.out.println("Watcher found file created at: " + path);
-                    if (path.endsWith(RELEASE_MARKER_NAME)) {
-                        System.out.println("File name matches, looking for latch to release transaction...");
-
-                        freeLatch();
-
-                        try {
-                            if (Files.exists(path)) {
-                                Files.delete(path);
-                            }
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                }
-
-                boolean valid = key.reset();
-                if (!valid) {
-                    break;
-                }
-            }
-        }
-    }
-
+    
     Response addEntryToRunInTransactionInBackground(String value) {
         if (value == null) {
             System.err.println("Null value.");
@@ -256,9 +125,7 @@ public class DemoBean {
         @Override
         public void afterCompletion(int status) {
             System.out.println("Attempting to clear latch in Tx Synchronization. Status: " + status);
-            synchronized (DemoBean.class) {
                 freeLatch();
-            }
         }
     }
 
@@ -269,7 +136,7 @@ public class DemoBean {
         public HttpReleasePoller() {
             String hostName = System.getenv().get("HOSTNAME");
             try {
-                this.url = new URL("http://eap7-app-release-server/release/" + hostName);
+                this.url = new URL("http://eap7-app-release-server:8080/release/" + hostName);
             } catch (MalformedURLException e) {
                 throw new RuntimeException(e);
             }
@@ -301,9 +168,8 @@ public class DemoBean {
                             }
                             System.out.println("----> read content '" + content.toString().trim() + "'");
                             if (content.toString().trim().equals("1")) {
-                                System.out.println("Writing marker to release lock");
-                                Path marker = markerDir.resolve(RELEASE_MARKER_NAME);
-                                Files.write(marker, "1".getBytes(StandardCharsets.UTF_8));
+                                System.out.println("Freeing latch");
+                                freeLatch();
                                 return;
                             }
                         }
