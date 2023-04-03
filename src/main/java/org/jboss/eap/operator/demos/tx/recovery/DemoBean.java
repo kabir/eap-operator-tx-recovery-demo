@@ -241,42 +241,48 @@ public class DemoBean {
 
         @Override
         public void run() {
-            while (!stopped.get()) {
-                try {
-                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                    conn.setRequestMethod("GET");
-                    conn.setConnectTimeout(5000);
-                    int status = 0;
+            System.out.println("Release poller: starting");
+            try {
+                while (!stopped.get()) {
                     try {
-                        status = conn.getResponseCode();
-                    } catch (ConnectException e) {
-                        System.err.println("Error connecting: " + e.getMessage());
-                    }
-                    System.out.println("Polled release server. Status: " + status);
-                    try (BufferedReader in = new BufferedReader(
-                            new InputStreamReader(conn.getInputStream()))) {
-                        String inputLine;
-                        StringBuffer content = new StringBuffer();
-                        while ((inputLine = in.readLine()) != null) {
-                            content.append(inputLine);
+                        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                        conn.setRequestMethod("GET");
+                        conn.setConnectTimeout(5000);
+                        int status = 0;
+                        try {
+                            status = conn.getResponseCode();
+                        } catch (ConnectException e) {
+                            System.err.println("Error connecting: " + e.getMessage());
                         }
-                        System.out.println("----> read content '" + content.toString().trim() + "'");
-                        if (content.toString().trim().equals("1")) {
-                            System.out.println("Writing marker to release lock");
-                            Path marker = markerDir.resolve(RELEASE_MARKER_NAME);
-                            Files.write(marker, "1".getBytes(StandardCharsets.UTF_8));
-                            return;
+                        System.out.println("Release poller: Polled release server. Status: " + status);
+                        try (BufferedReader in = new BufferedReader(
+                                new InputStreamReader(conn.getInputStream()))) {
+                            String inputLine;
+                            StringBuffer content = new StringBuffer();
+                            while ((inputLine = in.readLine()) != null) {
+                                System.out.println("Read line: " + inputLine);
+                                content.append(inputLine);
+                            }
+                            System.out.println("----> read content '" + content.toString().trim() + "'");
+                            if (content.toString().trim().equals("1")) {
+                                System.out.println("Writing marker to release lock");
+                                Path marker = markerDir.resolve(RELEASE_MARKER_NAME);
+                                Files.write(marker, "1".getBytes(StandardCharsets.UTF_8));
+                                return;
+                            }
                         }
+                    } catch (IOException e) {
+                        e.printStackTrace();
                     }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
 
-                try {
-                    Thread.sleep(5000);
-                } catch (InterruptedException e) {
-                    return;
+                    try {
+                        Thread.sleep(5000);
+                    } catch (InterruptedException e) {
+                        return;
+                    }
                 }
+            } finally {
+                System.out.println("Release poller: ending");
             }
         }
 
