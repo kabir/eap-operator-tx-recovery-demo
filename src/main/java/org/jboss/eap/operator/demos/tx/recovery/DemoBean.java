@@ -15,6 +15,7 @@ import javax.ws.rs.core.Response;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.ConnectException;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -29,6 +30,7 @@ import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
@@ -77,8 +79,6 @@ public class DemoBean {
             WatchService watcher = FileSystems.getDefault().newWatchService();
             markerDir.register(watcher, StandardWatchEventKinds.ENTRY_CREATE);
             executor.submit(new FileWatcher(watcher));
-
-            executor.submit(new HttpReleasePoller());
 
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -165,8 +165,14 @@ public class DemoBean {
     // Called internally by the transactionExecutor Runnable
     @Transactional
     void addEntryInTxAndWait(String value) {
+
         System.out.println("Transaction started. Registering Tx Synchronization");
         txSyncRegistry.registerInterposedSynchronization(new Callback());
+
+        System.out.println("Starting Tx release poller");
+        HttpReleasePoller poller = new HttpReleasePoller();
+        executor.submit(poller);
+
 
         System.out.println("Persisting entity with value: " + value);
         DemoEntity entity = new DemoEntity();
@@ -180,9 +186,9 @@ public class DemoBean {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             System.out.println("Wait for latch was interrupted");
+        } finally {
+            poller.stop();
         }
-
-
     }
 
     @Transactional
@@ -222,6 +228,7 @@ public class DemoBean {
 
     private class HttpReleasePoller implements Runnable {
         private final URL url;
+        private final AtomicBoolean stopped = new AtomicBoolean(false);
 
         public HttpReleasePoller() {
             String hostName = System.getenv().get("HOSTNAME");
@@ -234,11 +241,18 @@ public class DemoBean {
 
         @Override
         public void run() {
-            while (true) {
+            while (!stopped.get()) {
                 try {
                     HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                     conn.setRequestMethod("GET");
-                    int status = conn.getResponseCode();
+                    conn.setConnectTimeout(5000);
+                    int status = 0;
+                    try {
+                        status = conn.getResponseCode();
+                    } catch (ConnectException e) {
+                        System.err.println("Error connecting: " + e.getMessage());
+                    }
+                    System.out.println("Polled release server. Status: " + status);
                     try (BufferedReader in = new BufferedReader(
                             new InputStreamReader(conn.getInputStream()))) {
                         String inputLine;
@@ -251,6 +265,7 @@ public class DemoBean {
                             System.out.println("Writing marker to release lock");
                             Path marker = markerDir.resolve(RELEASE_MARKER_NAME);
                             Files.write(marker, "1".getBytes(StandardCharsets.UTF_8));
+                            return;
                         }
                     }
                 } catch (IOException e) {
@@ -258,12 +273,15 @@ public class DemoBean {
                 }
 
                 try {
-
                     Thread.sleep(5000);
                 } catch (InterruptedException e) {
                     return;
                 }
             }
+        }
+
+        public void stop() {
+            stopped.set(true);
         }
     }
 }

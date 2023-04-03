@@ -86,7 +86,7 @@ You can either go to the pod in the openshift console, and go to the terminal vi
 Once in the `/home/jboss` folder, execute:
 
 ```shell
-touch release
+curl -X POST -v http://$(oc get route eap7-app-route --template='{{ .spec.host }}')/release/0
 ```
 This will create a marker file called `release`, which will be picked up by the application. This in turn releases the latch, and completes the transaction.
 
