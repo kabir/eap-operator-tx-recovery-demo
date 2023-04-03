@@ -76,9 +76,44 @@ public class DemoBean {
             System.out.println("==========================================================================================");
 
 
+            System.out.println("=====> Bunch of runnables A");
+            for (int i = 0; i < 10; i++) {
+                final int num = i;
+                executor.submit(new Runnable() {
+                    @Override
+                    public void run() {
+                        System.out.println("Started runnable " + num);
+                        try {
+                            Thread.sleep(2000);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                        System.out.println("Completes runnable " + num);
+                    }
+                });
+            }
+
             WatchService watcher = FileSystems.getDefault().newWatchService();
             markerDir.register(watcher, StandardWatchEventKinds.ENTRY_CREATE);
             executor.submit(new FileWatcher(watcher));
+
+
+            System.out.println("=====> Bunch of runnables b");
+            for (int i = 11; i < 20; i++) {
+                final int num = i;
+                executor.submit(new Runnable() {
+                    @Override
+                    public void run() {
+                        System.out.println("Started runnable " + num);
+                        try {
+                            Thread.sleep(2000);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                        System.out.println("Completes runnable " + num);
+                    }
+                });
+            }
 
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -172,6 +207,7 @@ public class DemoBean {
         System.out.println("Starting Tx release poller");
         HttpReleasePoller poller = new HttpReleasePoller();
         executor.submit(poller);
+
 
 
         System.out.println("Persisting entity with value: " + value);
