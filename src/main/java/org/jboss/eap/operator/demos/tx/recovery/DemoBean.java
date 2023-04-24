@@ -19,7 +19,9 @@ import java.net.ConnectException;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -42,13 +44,14 @@ public class DemoBean {
     @Resource
     TransactionSynchronizationRegistry txSyncRegistry;
 
+    private final String hostName = System.getenv().get("HOSTNAME");
+
     @PostConstruct
     public void init() {
         // Clear out any markers for us in the release server so that we start from a blank state
         HttpReleasePoller releasePoller = new HttpReleasePoller();
         releasePoller.stop();
         executor.submit(releasePoller);
-
     }
 
     Response addEntryToRunInTransactionInBackground(String value) {
@@ -87,11 +90,10 @@ public class DemoBean {
         HttpReleasePoller poller = new HttpReleasePoller();
         executor.submit(poller);
 
-
-
         System.out.println("Persisting entity with value: " + value);
         DemoEntity entity = new DemoEntity();
         entity.setValue(value);
+        entity.setHost(hostName);
         em.persist(entity);
 
         try {
@@ -107,9 +109,9 @@ public class DemoBean {
     }
 
     @Transactional
-    public List<String> getAllValues() {
+    public List<Map<String, String>> getAllValues() {
         TypedQuery<DemoEntity> query = em.createQuery("SELECT d from DemoEntity d", DemoEntity.class);
-        List<String> values = query.getResultList().stream().map(v -> v.getValue()).collect(Collectors.toList());
+        List<Map<String, String>> values = query.getResultList().stream().map(v -> Collections.singletonMap(v.getValue(), v.getHost())).collect(Collectors.toList());
         return values;
     }
 
@@ -144,7 +146,6 @@ public class DemoBean {
         private final AtomicBoolean stopped = new AtomicBoolean(false);
 
         public HttpReleasePoller() {
-            String hostName = System.getenv().get("HOSTNAME");
             try {
                 this.url = new URL("http://eap7-app-release-server:8080/release/" + hostName);
             } catch (MalformedURLException e) {

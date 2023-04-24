@@ -11,6 +11,7 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
 import java.util.List;
+import java.util.Map;
 
 import static javax.ws.rs.core.MediaType.APPLICATION_JSON;
 
@@ -31,7 +32,7 @@ public class DemoEndpoint {
 
     @GET
     @Produces(APPLICATION_JSON)
-    public List<String> getAllValues() {
+    public List<Map<String, String>> getAllValues() {
         return demoBean.getAllValues();
     }
 

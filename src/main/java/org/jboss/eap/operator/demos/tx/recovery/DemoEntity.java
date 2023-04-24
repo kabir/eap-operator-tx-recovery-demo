@@ -34,6 +34,7 @@ import javax.persistence.Id;
 public class DemoEntity {
     private Long id;
     private String value;
+    private String host;
 
     @Id
     @GeneratedValue
@@ -52,5 +53,14 @@ public class DemoEntity {
 
     public void setValue(String value) {
         this.value = value;
+    }
+
+    @Column(nullable = false)
+    public String getHost() {
+        return host;
+    }
+
+    public void setHost(String host) {
+        this.host = host;
     }
 }

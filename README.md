@@ -21,7 +21,7 @@ oc new-app --name postgresql \
 
 Create the `eap7-app` application image stream by using Helm to install the `application-image-helm.yaml` Helm chart, e.g.:
 ```shell
- helm install eap7-app -f application-image-helm.yaml jboss-eap/eap74
+helm install eap7-app -f application-image-helm.yaml jboss-eap/eap74
 ```
 This Helm chart results in an image containing the application in the EAP runtime image, pushed to the `eap7-app` image stream.
 
@@ -154,8 +154,9 @@ In the terminal containing the output from `oc get pods -w`, you should now see 
 Before moving on to the next example, make sure the pod is up and running again
 
 
-# TODO the above example doesn't seem to work properly so this can't work either 
-
+<!-- 
 ## Running transaction blocks shutdown and is freed when Tx times out 
 
+  As the above example isn't working the way I expected, am putting this one on hold 
+-->
 
