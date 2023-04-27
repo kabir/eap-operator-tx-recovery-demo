@@ -7,6 +7,7 @@
   * This is done in the Administrator perspective, from the OperatorHub. The name of the operator is 'JBoss EAP'. The default values should be fine.
 * Make sure you have the `oc` CLI and log in as the cluster administrator
 * Make sure you have the `helm` CLI
+  * Add the Helm chart by following the instructions in https://jbossas.github.io/eap-charts/
 * Create a new project with the `oc` CLI,: `oc new-project myproject`.
 * Create the needed postgres database with:
 ```shell
