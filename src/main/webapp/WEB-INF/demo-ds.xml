@@ -49,10 +49,8 @@
         </statement>
         <recovery>
             <recover-credential>
-                <security>
-                    <user-name>${org.jboss.eap.datasources.postgresql.user-name,env.POSTGRESQL_USER}</user-name>
-                    <password>${org.jboss.eap.datasources.postgresql.password,env.POSTGRESQL_PASSWORD}</password>
-                </security>
+                <user-name>${org.jboss.eap.datasources.postgresql.user-name,env.POSTGRESQL_USER}</user-name>
+                <password>${org.jboss.eap.datasources.postgresql.password,env.POSTGRESQL_PASSWORD}</password>
             </recover-credential>
         </recovery>
     </xa-datasource>

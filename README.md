@@ -18,7 +18,7 @@ oc new-app --name postgresql \
      postgresql:latest
 ```
 
-## Creating the Image Stream
+## Creating the Application Image Stream
 
 Create the `eap7-app` application image stream by using Helm to install the `application-image-helm.yaml` Helm chart, e.g.:
 ```shell
@@ -28,21 +28,22 @@ This Helm chart results in an image containing the application in the EAP runtim
 
 The above will take some time to complete. Once the output of `oc get build -w` indicates the `eap7-app-<n>>` is complete, you can proceed to the next step.
 
-**Note:** The name `eap7-app` is important since it becomes the basis for the name of the image stream referenced from application.yaml, the names of the pods and other things. 
+**Note:** The name `eap7-app` is important since it becomes the basis for the name of the image stream referenced later.
 
-## Deploy the Release Server
+## Adding Byteman to the image
 
-As we will see, our application is set up to leave the transaction running until it is released. We need a way to release those transactions. Since we will be suspending our application to demonstrate transaction recovery, and when the server is suspended it does not accept requests, we need a mechanism to do so external to the application.
+We will be using byteman to inject some rules to make the transaction 'freeze' during the 2-phase commit.
 
-In our case we deploy a 'release server' application to deal with the releasing of the transaction.
-
-To deploy the release server, run:
+Run:
 ```shell
-oc apply -f release-server.yaml
+./add-byteman-to-image.sh 
 ```
-This will install the release server and expose the route `eap7-app-release-server`. We will make POST requests to this route later to release the transactions.
+This will pull the runtime image containing our application, that we created in the last step. It then modifies the image as follows:
 
+* Downloads Byteman
+* Modifies the server startup script so that byteman can have rules added
 
+The image is then built and pushed to a new image strean called `eap7-app-byteman`. We will be using this image stream when deploying our application.
 
 ## Deploy the Application
 
