@@ -7,6 +7,7 @@ import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
@@ -24,15 +25,15 @@ public class DemoEndpoint {
     @POST
     @Path("{value}")
     @Consumes(MediaType.TEXT_PLAIN)
-    public Response send(@PathParam("value") String value) {
+    public Response send(@PathParam("value") String value, @QueryParam("crash") Boolean crash) {
         System.out.println("Received value: " + value);
-
-        return demoBean.addEntryToRunInTransactionInBackground(value);
+        boolean doCrash = crash == null ? false : crash;
+        return demoBean.addEntryToRunInTransactionInBackground(value, doCrash);
     }
 
     @GET
     @Produces(APPLICATION_JSON)
-    public List<Map<String, String>> getAllValues() {
+    public List<Map<String, Map<String, Boolean>>> getAllValues() {
         return demoBean.getAllValues();
     }
 

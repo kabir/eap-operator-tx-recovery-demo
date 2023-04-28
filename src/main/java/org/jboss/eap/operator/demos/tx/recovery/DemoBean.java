@@ -1,6 +1,5 @@
 package org.jboss.eap.operator.demos.tx.recovery;
 
-import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
 import javax.enterprise.concurrent.ManagedExecutorService;
 import javax.enterprise.context.ApplicationScoped;
@@ -12,17 +11,15 @@ import javax.transaction.Synchronization;
 import javax.transaction.TransactionSynchronizationRegistry;
 import javax.transaction.Transactional;
 import javax.ws.rs.core.Response;
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.net.ConnectException;
-import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
-import java.net.URL;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -30,9 +27,12 @@ import java.util.stream.Collectors;
 public class DemoBean {
 
     @PersistenceContext(unitName = "demo")
-    EntityManager em;
+    EntityManager demoEm;
 
-    volatile CountDownLatch hangTxLatch;
+    @PersistenceContext(unitName = "second")
+    EntityManager secondEm;
+
+    AtomicBoolean handlingRequest = new AtomicBoolean(false);
 
     @Inject
     DemoBean internalDelegate;
@@ -46,85 +46,118 @@ public class DemoBean {
 
     private final String hostName = System.getenv().get("HOSTNAME");
 
-    @PostConstruct
-    public void init() {
-        // Clear out any markers for us in the release server so that we start from a blank state
-        HttpReleasePoller releasePoller = new HttpReleasePoller();
-        releasePoller.stop();
-        executor.submit(releasePoller);
-    }
-
-    Response addEntryToRunInTransactionInBackground(String value) {
+    Response addEntryToRunInTransactionInBackground(String value, boolean crash) {
         if (value == null) {
             System.err.println("Null value.");
             return Response.status(Response.Status.BAD_REQUEST.getStatusCode()).build();
         }
 
-        synchronized (DemoBean.class) {
-            if (hangTxLatch != null) {
-                System.err.println("There is currently a long transaction in process. Please release the existing one.");
-                return Response.status(Response.Status.CONFLICT.getStatusCode())
-                        .build();
-            }
-            hangTxLatch = new CountDownLatch(1);
+        if (handlingRequest.get()) {
+            System.err.println("There is currently a transaction in process on this node");
+            return Response.status(Response.Status.CONFLICT.getStatusCode())
+                    .entity(hostName + " appears to be stuck in an XA transaction")
+                    .build();
         }
+
+        if (crash && hostName.endsWith("-0")) {
+            System.err.println("Ignoring request to crash first pod " + hostName);
+            return Response.status(Response.Status.CONFLICT.getStatusCode())
+                    .entity(hostName + " appears to be stuck in an XA transaction")
+                    .build();
+        }
+
+        handlingRequest.set(true);
+
+        if (crash) {
+            installBytemanRules();
+        }
+
+
         System.out.println("Submitting background task to store the entity in a long transaction");
         executor.submit(new Runnable() {
             @Override
             public void run() {
                 System.out.println("Calling Transactional method from background task");
-                internalDelegate.addEntryInTxAndWait(value);
+                internalDelegate.addEntriesInXaTx(value);
             }
         });
-        return Response.accepted().entity(System.getenv().get("HOSTNAME")).build();
+        return Response.accepted().entity(hostName).build();
+    }
+
+    private void installBytemanRules() {
+        Path homeDir = Paths.get(System.getProperty("user.home"));
+        Path bmSubmit = homeDir.resolve("byteman-download-4.0.21/bin/bmsubmit.sh");
+        Path rules = homeDir.resolve("xa.btm");
+
+        List<String> commands = Arrays.asList(
+                bmSubmit.normalize().toAbsolutePath().toString(),
+                rules.normalize().toAbsolutePath().toString());
+
+        ProcessBuilder pb = new ProcessBuilder(commands);
+        pb.directory(homeDir.toFile());
+        pb.redirectError(ProcessBuilder.Redirect.INHERIT);
+
+        Process process;
+        try {
+            process = pb.start();
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+
+        try {
+            int exit = process.waitFor();
+            System.out.println("Exit code: " + exit);
+            if (exit != 0) {
+                throw new RuntimeException("Was not able to add rules." + exit);
+            }
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
     // Called internally by the transactionExecutor Runnable
     @Transactional
-    void addEntryInTxAndWait(String value) {
+    void addEntriesInXaTx(String value) {
 
         System.out.println("Transaction started. Registering Tx Synchronization");
         txSyncRegistry.registerInterposedSynchronization(new Callback());
 
-        System.out.println("Starting Tx release poller");
-        HttpReleasePoller poller = new HttpReleasePoller();
-        executor.submit(poller);
-
-        System.out.println("Persisting entity with value: " + value);
+        System.out.println("Persisting entity with value in demoDs: " + value);
         DemoEntity entity = new DemoEntity();
         entity.setValue(value);
         entity.setHost(hostName);
-        em.persist(entity);
+        demoEm.persist(entity);
 
-        try {
-            System.out.println("Waiting for the latch to be released before committing the transaction....");
-            hangTxLatch.await();
-            System.out.println("Latch was released!");
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            System.out.println("Wait for latch was interrupted");
-        } finally {
-            poller.stop();
-        }
+        Long demoEntityId = entity.getId();
+        SecondEntity secondEntity = new SecondEntity();
+        secondEntity.setDemoEntityId(demoEntityId);
+        secondEm.persist(secondEntity);
     }
 
     @Transactional
-    public List<Map<String, String>> getAllValues() {
-        TypedQuery<DemoEntity> query = em.createQuery("SELECT d from DemoEntity d", DemoEntity.class);
-        List<Map<String, String>> values = query.getResultList().stream().map(v -> Collections.singletonMap(v.getValue(), v.getHost())).collect(Collectors.toList());
+    public List<Map<String, Map<String, Boolean>>> getAllValues() {
+        TypedQuery<SecondEntity> secondQuery = secondEm.createQuery("SELECT s from SecondEntity s", SecondEntity.class);
+        Set<Long> demoIds = secondQuery.getResultList().stream().map(v -> v.getDemoEntityId()).collect(Collectors.toSet());
+
+        TypedQuery<DemoEntity> demoQuery = demoEm.createQuery("SELECT d from DemoEntity d", DemoEntity.class);
+        List<Map<String, Map<String, Boolean>>> values =
+                demoQuery.getResultList().stream()
+                        .map(v -> Collections.singletonMap(v.getValue(), map(v.getHost(), demoIds.contains(v.getId()))))
+                        .collect(Collectors.toList());
+
+
         return values;
     }
 
     private void freeLatch() {
-        synchronized (DemoBean.class) {
-            if (hangTxLatch != null) {
-                System.out.println("Resetting latch");
-                hangTxLatch.countDown();
-                hangTxLatch = null;
-            } else {
-                System.out.println("Latch already reset. Nothing to do");
-            }
-        }
+        handlingRequest.set(false);
+    }
+
+    private Map<String, Boolean> map(String key, Boolean value) {
+        Map<String, Boolean> map = new HashMap<>();
+        map.put(key, value);
+        return map;
     }
 
     private class Callback implements Synchronization {
@@ -138,73 +171,6 @@ public class DemoBean {
         public void afterCompletion(int status) {
             System.out.println("Attempting to clear latch in Tx Synchronization. Status: " + status);
                 freeLatch();
-        }
-    }
-
-    private class HttpReleasePoller implements Runnable {
-        private final URL url;
-        private final AtomicBoolean stopped = new AtomicBoolean(false);
-
-        public HttpReleasePoller() {
-            try {
-                this.url = new URL("http://eap7-app-release-server:8080/release/" + hostName);
-            } catch (MalformedURLException e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        @Override
-        public void run() {
-            System.out.println("Release poller: starting");
-            try {
-                while (true) {
-                    try {
-                        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                        conn.setRequestMethod("GET");
-                        conn.setConnectTimeout(5000);
-                        int status = 0;
-                        try {
-                            status = conn.getResponseCode();
-                        } catch (ConnectException e) {
-                            System.err.println("Error connecting: " + e.getMessage());
-                        }
-                        System.out.println("Release poller: Polled release server. Status: " + status);
-                        try (BufferedReader in = new BufferedReader(
-                                new InputStreamReader(conn.getInputStream()))) {
-                            String inputLine;
-                            StringBuffer content = new StringBuffer();
-                            while ((inputLine = in.readLine()) != null) {
-                                System.out.println("Read line: " + inputLine);
-                                content.append(inputLine);
-                            }
-                            System.out.println("----> read content '" + content.toString().trim() + "'");
-                            if (content.toString().trim().equals("1")) {
-                                System.out.println("Freeing latch");
-                                freeLatch();
-                                return;
-                            }
-                        }
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-
-                    try {
-                        Thread.sleep(5000);
-                    } catch (InterruptedException e) {
-                        return;
-                    }
-
-                    if (stopped.get()) {
-                        return;
-                    }
-                }
-            } finally {
-                System.out.println("Release poller: ending");
-            }
-        }
-
-        public void stop() {
-            stopped.set(true);
         }
     }
 }

@@ -71,6 +71,7 @@ jndiName:String = xares.getJndiName();
 IF countDown("xahalt")
 #DO traceln("***** topLevelCommit returning error for " + jndiName), return 8
 DO traceln("***** topLevelCommit: Halting JVM for " + jndiName), delay(3000), killJVM()
+#DO traceln("***** topLevelCommit: Halting JVM for " + jndiName), delay(120000)
 ENDRULE
 
 ########################################################################

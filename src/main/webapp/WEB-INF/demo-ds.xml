@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    JBoss, Home of Professional Open Source
+    Copyright 2015, Red Hat, Inc. and/or its affiliates, and individual
+    contributors by the @authors tag. See the copyright.txt in the
+    distribution for a full listing of individual contributors.
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+-->
+<!-- This is an unmanaged datasource. It should be used for proofs of concept
+   or testing only. It uses H2, a lightweight, in-memory, example database that
+   ships with JBoss EAP. It is not robust or scalable, is not supported,
+   and should NOT be used in a production environment! -->
+<datasources xmlns="http://www.jboss.org/ironjacamar/schema"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.jboss.org/ironjacamar/schema http://docs.jboss.org/ironjacamar/schema/datasources_1_0.xsd">
+    <xa-datasource jndi-name="java:jboss/datasources/demo-ds" pool-name="demo-pool" enabled="true">
+        <connection-url>${org.jboss.eap.datasources.postgresql.connection-url,env.POSTGRESQL_URL:jdbc:postgresql://${org.jboss.eap.datasources.postgresql.host,env.POSTGRESQL_SERVICE_HOST,env.POSTGRESQL_HOST:localhost}:${org.jboss.eap.datasources.postgresql.port,env.POSTGRESQL_SERVICE_PORT,env.POSTGRESQL_PORT:5432}/${org.jboss.eap.datasources.postgresql.database,env.POSTGRESQL_DATABASE}}</connection-url>
+        <driver>postgresql</driver>
+        <transaction-isolation>${org.jboss.eap.datasources.postgresql.transaction-isolation,env.POSTGRESQL_TX_ISOLATION:TRANSACTION_READ_COMMITTED}</transaction-isolation>
+        <xa-pool>
+            <is-same-rm-override>false</is-same-rm-override>
+            <interleaving/>
+            <pad-xid>false</pad-xid>
+            <wrap-xa-resource>true</wrap-xa-resource>
+        </xa-pool>
+        <security>
+            <user-name>${org.jboss.eap.datasources.postgresql.user-name,env.POSTGRESQL_USER}</user-name>
+            <password>${org.jboss.eap.datasources.postgresql.password,env.POSTGRESQL_PASSWORD}</password>
+        </security>
+        <validation>
+            <valid-connection-checker class-name="${org.jboss.eap.datasources.postgresql.valid-connection-checker-class-name,env.POSTGRESQL_CONNECTION_CHECKER:org.jboss.jca.adapters.jdbc.extensions.postgres.PostgreSQLValidConnectionChecker}"/>
+            <validate-on-match>${org.jboss.eap.datasources.postgresql.validate-on-match,env.POSTGRESQL_VALIDATE_ON_MATCH:true}</validate-on-match>
+            <background-validation>${org.jboss.eap.datasources.postgresql.background-validation,env.POSTGRESQL_BACKGROUND_VALIDATION:false}</background-validation>
+            <background-validation-millis>${org.jboss.eap.datasources.postgresql.background-validation-millis,env.POSTGRESQL_BACKGROUND_VALIDATION_MILLIS:10000}</background-validation-millis>
+            <stale-connection-checker class-name="${org.jboss.eap.datasources.postgresql.stale-connection-checker-class-name,env.POSTGRESQL_STALE_CONNECTION_CHECKER:org.jboss.jca.adapters.jdbc.extensions.novendor.NullStaleConnectionChecker}"/>
+            <exception-sorter class-name="${org.jboss.eap.datasources.postgresql.exception-sorter-class-name, env.POSTGRESQL_EXCEPTION_SORTER:org.jboss.jca.adapters.jdbc.extensions.postgres.PostgreSQLExceptionSorter}"/>
+        </validation>
+        <statement>
+            <prepared-statement-cache-size>0</prepared-statement-cache-size>
+        </statement>
+        <recovery>
+            <recover-credential>
+                <security>
+                    <user-name>${org.jboss.eap.datasources.postgresql.user-name,env.POSTGRESQL_USER}</user-name>
+                    <password>${org.jboss.eap.datasources.postgresql.password,env.POSTGRESQL_PASSWORD}</password>
+                </security>
+            </recover-credential>
+        </recovery>
+    </xa-datasource>
+</datasources>
