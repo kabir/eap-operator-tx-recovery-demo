@@ -1,6 +1,8 @@
 ARG from_image
 FROM $from_image
 
+USER jboss
+
 ENV BYTEMAN_HOME=$HOME/byteman-download-4.0.21/
 COPY xa.btm $HOME/xa.btm
 RUN curl https://downloads.jboss.org/byteman/4.0.21/byteman-download-4.0.21-bin.zip -o byteman.zip && \
