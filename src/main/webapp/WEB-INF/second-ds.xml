@@ -23,7 +23,7 @@
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:schemaLocation="http://www.jboss.org/ironjacamar/schema http://docs.jboss.org/ironjacamar/schema/datasources_1_0.xsd">
     <xa-datasource jndi-name="java:jboss/datasources/second-ds" pool-name="second-pool" enabled="true">
-        <connection-url>${org.jboss.eap.datasources.postgresql.connection-url,env.POSTGRESQL_URL:jdbc:postgresql://${org.jboss.eap.datasources.postgresql.host,env.POSTGRESQL_SERVICE_HOST,env.POSTGRESQL_HOST:localhost}:${org.jboss.eap.datasources.postgresql.port,env.POSTGRESQL_SERVICE_PORT,env.POSTGRESQL_PORT:5432}/${org.jboss.eap.datasources.postgresql.database,env.POSTGRESQL_DATABASE}}</connection-url>
+        <xa-datasource-property name="URL">${org.jboss.eap.datasources.postgresql.connection-url,env.POSTGRESQL_URL:jdbc:postgresql://${org.jboss.eap.datasources.postgresql.host,env.POSTGRESQL_SERVICE_HOST,env.POSTGRESQL_HOST:localhost}:${org.jboss.eap.datasources.postgresql.port,env.POSTGRESQL_SERVICE_PORT,env.POSTGRESQL_PORT:5432}/${org.jboss.eap.datasources.postgresql.database,env.POSTGRESQL_DATABASE}}</xa-datasource-property>
         <driver>postgresql</driver>
         <transaction-isolation>${org.jboss.eap.datasources.postgresql.transaction-isolation,env.POSTGRESQL_TX_ISOLATION:TRANSACTION_READ_COMMITTED}</transaction-isolation>
         <xa-pool>
