@@ -8,6 +8,6 @@ build:
       - postgresql-datasource
   env:
     - name: POSTGRESQL_DRIVER_VERSION
-      value: '42.2.19'
+      value: '42.6.0'
 deploy:
   enabled: false
