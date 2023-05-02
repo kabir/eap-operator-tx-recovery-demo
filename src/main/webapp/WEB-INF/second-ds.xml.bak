@@ -22,7 +22,7 @@
 <datasources xmlns="http://www.jboss.org/ironjacamar/schema"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:schemaLocation="http://www.jboss.org/ironjacamar/schema http://docs.jboss.org/ironjacamar/schema/datasources_1_0.xsd">
-    <xa-datasource jndi-name="java:jboss/datasources/demo-ds" pool-name="demo-pool" enabled="true">
+    <xa-datasource jndi-name="java:jboss/datasources/second-ds" pool-name="second-pool" enabled="true">
         <xa-datasource-property name="URL">jdbc:postgresql://${env.POSTGRESQL_SERVICE_HOST:localhost}:${env.POSTGRESQL_SERVICE_PORT:5432}/${env.POSTGRESQL_DATABASE}</xa-datasource-property>
         <driver>postgresql</driver>
         <transaction-isolation>${org.jboss.eap.datasources.postgresql.transaction-isolation,env.POSTGRESQL_TX_ISOLATION:TRANSACTION_READ_COMMITTED}</transaction-isolation>
@@ -33,8 +33,14 @@
             <wrap-xa-resource>true</wrap-xa-resource>
         </xa-pool>
         <security>
-            <user-name>${env.POSTGRESQL_USER}</user-name>
-            <password>${env.POSTGRESQL_PASSWORD}</password>
+            <!-- The DsXmlParser doesn't understand environment variables here -->
+            <user-name>admin</user-name>
+            <password>admin</password>
+            <!--
+
+                            <user-name>${env.POSTGRESQL_USER}</user-name>
+                            <password>${env.POSTGRESQL_PASSWORD}</password>
+            -->
         </security>
         <validation>
             <valid-connection-checker class-name="${org.jboss.eap.datasources.postgresql.valid-connection-checker-class-name,env.POSTGRESQL_CONNECTION_CHECKER:org.jboss.jca.adapters.jdbc.extensions.postgres.PostgreSQLValidConnectionChecker}"/>
@@ -49,8 +55,14 @@
         </statement>
         <recovery>
             <recover-credential>
+                <!-- The DsXmlParser doesn't understand environment variables here -->
+                <user-name>admin</user-name>
+                <password>admin</password>
+<!--
+
                 <user-name>${env.POSTGRESQL_USER}</user-name>
                 <password>${env.POSTGRESQL_PASSWORD}</password>
+-->
             </recover-credential>
         </recovery>
     </xa-datasource>
