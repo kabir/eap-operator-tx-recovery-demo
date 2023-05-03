@@ -20,9 +20,10 @@ spec:
       value: admin
     - name: POSTGRESQL_PASSWORD
       value: admin
-    - name: POSTGRESQL_DATASOURCE
-      value: demo-ds
-    - name: POSTGRESQL_SERVICE_HOST
-      value: postgresql
+    - name: POSTGRESQL_SERVICE_DEMO
+      value: postgresql-demo
+    - name: POSTGRESQL_SERVICE_SECOND
+      value: postgresql2-second
+    # Is this actually needed?
     - name: TX_RELEASE_DIRECTORY
       value: /home/jboss

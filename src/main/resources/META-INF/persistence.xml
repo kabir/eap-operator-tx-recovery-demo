@@ -22,18 +22,22 @@
         http://xmlns.jcp.org/xml/ns/persistence/persistence_2_1.xsd">
     <persistence-unit name="demo">
         <jta-data-source>java:jboss/datasources/demo-ds</jta-data-source>
+        <class>org.jboss.eap.operator.demos.tx.recovery.DemoEntity</class>
+        <exclude-unlisted-classes>true</exclude-unlisted-classes>
         <properties>
             <!-- Properties for Hibernate -->
             <property name="hibernate.hbm2ddl.auto" value="create"/>
-            <property name="hibernate.show_sql" value="false"/>
+            <property name="hibernate.show_sql" value="true"/>
         </properties>
     </persistence-unit>
     <persistence-unit name="second">
         <jta-data-source>java:jboss/datasources/second-ds</jta-data-source>
+        <class>org.jboss.eap.operator.demos.tx.recovery.SecondEntity</class>
+        <exclude-unlisted-classes>true</exclude-unlisted-classes>
         <properties>
             <!-- Properties for Hibernate -->
             <property name="hibernate.hbm2ddl.auto" value="create"/>
-            <property name="hibernate.show_sql" value="false"/>
+            <property name="hibernate.show_sql" value="true"/>
         </properties>
     </persistence-unit>
 </persistence>

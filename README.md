@@ -9,13 +9,23 @@
 * Make sure you have the `helm` CLI
   * Add the Helm chart by following the instructions in https://jbossas.github.io/eap-charts/
 * Create a new project with the `oc` CLI,: `oc new-project myproject`.
-* Create the needed postgres database with:
+* Create the needed postgres databases with:
 ```shell
-oc new-app --name postgresql \
+oc new-app --name postgresql-demo \
      --env POSTGRESQL_USER=admin \
      --env POSTGRESQL_PASSWORD=admin \
      --env POSTGRESQL_DATABASE=sampledb \
-     postgresql:latest
+     --env POSTGRESQL_MAX_CONNECTIONS=100 \
+     --env POSTGRESQL_MAX_PREPARED_TRANSACTIONS=100\
+   postgresql:latest
+
+oc new-app --name postgresql-second \
+     --env POSTGRESQL_USER=admin \
+     --env POSTGRESQL_PASSWORD=admin \
+     --env POSTGRESQL_DATABASE=sampledb \
+     --env POSTGRESQL_MAX_CONNECTIONS=100 \
+     --env POSTGRESQL_MAX_PREPARED_TRANSACTIONS=100\
+   postgresql:latest
 ```
 
 ## Creating the Application Image Stream
