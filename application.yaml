@@ -23,7 +23,7 @@ spec:
     - name: POSTGRESQL_SERVICE_DEMO
       value: postgresql-demo
     - name: POSTGRESQL_SERVICE_SECOND
-      value: postgresql2-second
+      value: postgresql-second
     # Is this actually needed?
     - name: TX_RELEASE_DIRECTORY
       value: /home/jboss
