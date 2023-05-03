@@ -40,20 +40,7 @@ The above will take some time to complete. Once the output of `oc get build -w` 
 
 **Note:** The name `eap7-app` is important since it becomes the basis for the name of the image stream referenced later.
 
-## Adding Byteman to the image
-
-We will be using byteman to inject some rules to make the transaction 'freeze' during the 2-phase commit.
-
-Run:
-```shell
-./add-byteman-to-image.sh 
-```
-This will pull the runtime image containing our application, that we created in the last step. It then modifies the image as follows:
-
-* Downloads Byteman
-* Modifies the server startup script so that byteman can have rules added
-
-The image is then built and pushed to a new image strean called `eap7-app-byteman`. We will be using this image stream when deploying our application.
+The `src/main/scripts/s2i/install.sh` script which gets run when building the server will download byteman and configure the server to use byteman in listening mode. 
 
 ## Deploy the Application
 
@@ -62,6 +49,8 @@ To deploy the application, run:
 oc apply -f application.yaml
 ```
 This starts the application with one pod. Wait for the pod to be ready before progressing to the next step.
+
+The `src/main/scripts/s2i/initialize-server.cli` CLI script gets run on server launch and configures two XA datasources to connect to the two databases we set up.
 
 
 ## The Application
