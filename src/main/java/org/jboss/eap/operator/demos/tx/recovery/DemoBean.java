@@ -93,9 +93,10 @@ public class DemoBean {
     }
 
     private void installBytemanRules() {
-        Path homeDir = Paths.get(System.getProperty("user.home"));
-        Path bmSubmit = homeDir.resolve("byteman-download-4.0.21/bin/bmsubmit.sh");
-        Path rules = homeDir.resolve("xa.btm");
+        Path homeDir = Paths.get(System.getProperty("jboss.home.dir"));
+        Path extensionsDir = homeDir.resolve("extensions");
+        Path bmSubmit = extensionsDir.resolve("byteman/bin/bmsubmit.sh");
+        Path rules = extensionsDir.resolve("xa.btm");
 
         List<String> commands = Arrays.asList(
                 bmSubmit.normalize().toAbsolutePath().toString(),
@@ -177,8 +178,8 @@ public class DemoBean {
 
         @Override
         public void afterCompletion(int status) {
-            System.out.println("Attempting to clear latch in Tx Synchronization. Status: " + status);
-                freeLatch();
+            System.out.println("Tx completed. Opening up for new requests. Status: " + status);
+            freeLatch();
         }
     }
 }
