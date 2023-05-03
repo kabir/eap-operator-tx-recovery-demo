@@ -44,7 +44,15 @@ public class DemoBean {
     @Resource
     TransactionSynchronizationRegistry txSyncRegistry;
 
-    private final String hostName = System.getenv().get("HOSTNAME");
+    private final String hostName;
+
+    public DemoBean() {
+        String hostName = System.getenv().get("HOSTNAME");
+        if (hostName == null) {
+            hostName = "local install";
+        }
+        this.hostName = hostName;
+    }
 
     Response addEntryToRunInTransactionInBackground(String value, boolean crash) {
         if (value == null) {
