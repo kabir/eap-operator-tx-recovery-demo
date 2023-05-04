@@ -106,6 +106,7 @@ public class DemoBean {
         ProcessBuilder pb = new ProcessBuilder(commands);
         pb.directory(homeDir.toFile());
         pb.redirectError(ProcessBuilder.Redirect.INHERIT);
+        pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
 
         Process process;
         try {
