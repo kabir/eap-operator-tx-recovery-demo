@@ -25,10 +25,17 @@ public class DemoEndpoint {
     @POST
     @Path("{value}")
     @Consumes(MediaType.TEXT_PLAIN)
-    public Response send(@PathParam("value") String value, @QueryParam("crash") Boolean crash) {
+    public Response send(@PathParam("value") String value) {
         System.out.println("Received value: " + value);
-        boolean doCrash = crash == null ? false : crash;
-        return demoBean.addEntryToRunInTransactionInBackground(value, doCrash);
+        return demoBean.addEntryToRunInTransactionInBackground(value, false);
+    }
+
+    @POST
+    @Path("freeze/{value}")
+    @Consumes(MediaType.TEXT_PLAIN)
+    public Response sendAndFreezeTx(@PathParam("value") String value) {
+        System.out.println("Received value for frozen transaction: " + value);
+        return demoBean.addEntryToRunInTransactionInBackground(value, true);
     }
 
     @GET

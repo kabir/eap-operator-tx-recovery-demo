@@ -93,6 +93,7 @@ public class DemoBean {
     }
 
     private void installBytemanRules() {
+        System.out.println("Attempting to invoke Byteman rule to hang the transaction");
         Path homeDir = Paths.get(System.getProperty("jboss.home.dir"));
         Path extensionsDir = homeDir.resolve("extensions");
         Path bmSubmit = extensionsDir.resolve("byteman/bin/bmsubmit.sh");
