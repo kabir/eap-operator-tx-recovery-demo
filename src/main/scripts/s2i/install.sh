@@ -13,6 +13,26 @@ unzip byteman.zip
 mv byteman-download-4.0.21 $JBOSS_HOME/extensions/byteman
 chmod -R o-rwx $JBOSS_HOME/extensions/byteman
 
+
+# This has the effect of replacing
+# if [ "x$JBOSS_MODULES_SYSTEM_PKGS" = "x" ]; then
+#   JBOSS_MODULES_SYSTEM_PKGS="org.jboss.byteman"
+# fi
+#
+# with
+#
+# if [ "x$JBOSS_MODULES_SYSTEM_PKGS" = "x" ]; then
+#   JBOSS_MODULES_SYSTEM_PKGS="org.jboss.byteman"
+# else
+#   JBOSS_MODULES_SYSTEM_PKGS="org.jboss.byteman,$JBOSS_MODULES_SYSTEM_PKGS"
+# fi
+#
+# '\s*' is ignore whitespace.
+# I would have liked to match the full input string rather than the single 'JBOSS_MODULES_SYSTEM_PKGS="org.jboss.byteman"'
+# line but cannot figure out how to do that :-)
+
+sed -i 's/^\s*JBOSS_MODULES_SYSTEM_PKGS="org.jboss.byteman"\s*$/   JBOSS_MODULES_SYSTEM_PKGS="org.jboss.byteman"\nelse\n   JBOSS_MODULES_SYSTEM_PKGS="org.jboss.byteman,$JBOSS_MODULES_SYSTEM_PKGS"/g' $JBOSS_HOME/bin/standalone.conf
+
 echo "export BYTEMAN_HOME=\"$JBOSS_HOME/extensions/byteman\""  >> $JBOSS_HOME/bin/standalone.conf
 # -Xverify:none is deprecated from Java 13, but I don't see another way right now
 # to follow the recommendations in https://www.baeldung.com/java-lang-verifyerror
