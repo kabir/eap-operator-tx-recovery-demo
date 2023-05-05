@@ -69,9 +69,8 @@ jndiName:String = xares.getJndiName();
 # if the count down started at 2 and there are 2 XA resources then it should fire when the
 # second participant commits
 IF countDown("xahalt")
-#DO traceln("***** topLevelCommit returning error for " + jndiName), return 8
-DO traceln("***** topLevelCommit: Halting JVM for " + jndiName), delay(3000), killJVM()
-#DO traceln("***** topLevelCommit: Halting JVM for " + jndiName), delay(120000)
+#DO traceln("***** topLevelCommit: Halting JVM for " + jndiName), delay(3000), killJVM()
+DO traceln("***** topLevelCommit: Freezing transaction for 240 seconds " + jndiName), delay(240000)
 ENDRULE
 
 ########################################################################
