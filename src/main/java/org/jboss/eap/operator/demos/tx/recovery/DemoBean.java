@@ -70,7 +70,7 @@ public class DemoBean {
         if (crash && hostName.endsWith("-0")) {
             System.err.println("Ignoring request to crash first pod " + hostName);
             return Response.status(Response.Status.CONFLICT.getStatusCode())
-                    .entity(hostName + " appears to be stuck in an XA transaction")
+                    .entity("Ignoring request to crash first pod " + hostName)
                     .build();
         }
 

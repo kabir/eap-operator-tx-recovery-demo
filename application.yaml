@@ -5,7 +5,7 @@ metadata:
 spec:
   applicationImage: eap7-app:latest
   #applicationImage: eap7-app-byteman:latest
-  replicas: 1
+  replicas: 2
   storage:
     volumeClaimTemplate:
       spec:

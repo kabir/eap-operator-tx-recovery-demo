@@ -36,11 +36,11 @@ helm install eap7-app -f application-image-helm.yaml jboss-eap/eap74
 ```
 This Helm chart results in an image containing the application in the EAP runtime image, pushed to the `eap7-app` image stream.
 
-The above will take some time to complete. Once the output of `oc get build -w` indicates the `eap7-app-<n>>` is complete, you can proceed to the next step.
+The above will take some time to complete. Once the output of `oc get build -w` indicates the `eap7-app-<n>>` is complete, you can proceed to the next step. 
 
 **Note:** The name `eap7-app` is important since it becomes the basis for the name of the image stream referenced later.
 
-The `src/main/scripts/s2i/install.sh` script which gets run when building the server will download byteman and configure the server to use byteman in listening mode. 
+The `src/main/scripts/s2i/install.sh` script which gets run when building the server will download byteman and configure the server to use byteman in listening mode. This is important later when we 'freeze' the second commit.
 
 ## Deploy the Application
 
@@ -48,7 +48,8 @@ To deploy the application, run:
 ```shell
 oc apply -f application.yaml
 ```
-This starts the application with one pod. Wait for the pod to be ready before progressing to the next step.
+This starts the application with two pods. Wait for both pods to be ready before progressing to the next step.
+The names of the hosts will be `eap7-app-0` and `eap7-app-1`.
 
 The `src/main/scripts/s2i/initialize-server.cli` CLI script gets run on server launch and configures two XA datasources to connect to the two databases we set up.
 
@@ -56,15 +57,11 @@ The `src/main/scripts/s2i/initialize-server.cli` CLI script gets run on server l
 ## The Application
 The application is quite simple, and made to demonstrate transaction recovery when using the EAP operator on OpenShift.
 
-It exposes two REST endpoints. One allows us to add new values to the database via a POST request, and the other lets us get the values via a GET request. To make these easier to invoke, the `demo.sh` script is provided. 
+There are two XA data sources, each storing/reading data to/from different databases. When storing data, it will insert data via both XA data sources, and when reading the data it will combine the data from both XA datasources. The mentioned byteman rule triggers when doing the 2-phase commit after adding data via the application. The rule takes effect when committing the second XA resource, resulting in the actual commit being delayed for 4 minutes. This gives us time to scale down the application and demonstrate transaction recovery as we will see later. 
 
-### Getting all entries
-```shell
-./demo.sh list 
-```
-Before you have created any entries this will be empty.
+It exposes three REST endpoints. One allows us to add new values to the database via a POST request, another does the same but 'freezes' the transaction. The last one lets us get the values via a GET request. To make these easier to invoke, a `demo.sh` script is provided. 
 
-### Creating an entry in a long-running transaction
+### Creating an entry
 ```shell
 ./demo.sh add <value>
 ```
@@ -72,59 +69,52 @@ For example:
 ```shell
 ./demo.sh add hello
 ```
+This will insert the data. The script is set up to run curl in verbose mode, so it will return the HTTP status code, headers, as well as the name of the load-balanced host that was used to store the data.
 
-In the normal case this will accept the request, resulting in a '202 Accepted' status code. The request will return immediately but spawn a background thread which starts a transaction and then waits for a latch to be released. We will look at how to release the latch in a second. Once the latch is released, it will store an entity in the database. If the transaction is not released and times out, the latch is also released.
-
-Once the latch is released, you may call this endpoint again. If called before the latch is released, you will receive a '409 Conflict' status code.
-
-Since the name of the pod we are locking the transaction on is important for later steps, the name of the pos is included in the result of this call. For example `eap7-app-0` indicates that the pod `eap7-app-0` is the one we have to go to in order to release the latch.
-
-### Releasing the latch
-
-The release server mentioned earlier is used to release the transaction on a pod. 
-
-It is done as follows:
+### Creating an entry and 'freezing' the transaction
 ```shell
-./demo.sh release <pod name, or numeric prefix>
+./demo.sh freeze <value>
 ```
-
-Since we need to release the latch on the server which is blocked, we need to specify the pod we should work on.
-
-We can either use the full pod name as returned by the `./demo.sh add` command:
+For example:
 ```shell
-./demo.sh release eap7-app-0
+./demo.sh freeze hello
+
+
+In the normal case this will accept the request, resulting in a '202 Accepted' status code. The request will return immediately but spawn a background thread which starts a transaction and then triggers the mentioned byteman rule to 'freeze' the transaction commit on the second XA resource. 
+
+As all requests are load-balanced, and we need the first pod `eap7-app-0` to not be the one with an frozen, and thus inconsistent, transaction. So, if this 'freeze' command hits `eap7-app-0`, the transaction commit will not be frozen, and you will receive an HTTP Status of 409. In this case just try again until the request is accepted on another host.
+
+### Getting all entries
+```shell
+./demo.sh list 
 ```
-or, we can simply use the numeric suffix:
+Before you have created any entries this will be empty. After adding entries, it will return a combined view of data we added via both XA datasources. This will be a JSON list where each entry looks something like the following:
+
 ```shell
-./demo.sh release 0
+{"hello":{"eap7-app-1":true}}
 ```
+* `hello` - is the data we added
+* `eap7-app-1` - is the name of the host that ended up serving the 'add' (or 'freeze') command
+* `true` - means that both resources were properly committed. This is the 'normal', and expected state. When we look at freezing the second commit later, a value of `false` indicates the second XA resource was not committed.
 
-## Recovery Scenarios
-Now we get to the main point which is to demonstrate that the server will remain up until the transaction is released or times out.
+## Demonstrating Transaction Recovery
 
-All examples expect the following initial state:
+Since we will be 'freezing' the transaction on `eap7-app-1`, follow its logs in a dedicated terminal window:
 
-* The database is up and running
-* The release server is running
-* The application is running with one pod
-
-## Running transaction blocks shutdown (single node)
-In this example we will have just one application pod. We will start a long running transaction, and then try to scale down the application to zero pods with the operator. The pod should remain running until we have released the transaction.
-
-In a terminal window, run `oc get pods -w`. The output should looks something like:
 ```shell
-% oc get pods -w                                
-NAME                                       READY   STATUS    RESTARTS   AGE
-eap7-app-0                                 1/1     Running   0          22m
-eap7-app-release-server-7f9dd7fcf8-p79g5   1/1     Running   0          33m
-postgresql-644b8c898f-t4k64                1/1     Running   0          3h55m
+oc logs -f eap7-app-1
 ```
+We will look at the logs later.
 
-The important pod here is the `eap7-app-0` one.
+Since we need to scale down the pods reasonably quickly once we've frozen the transaction commit, prepare to do so by selecting your project in the OpenShift console's Administrator view. From there, select 'Installed Operators', then the 'JBoss EAP' operator. Then go into the 'WildFlyServer' tab, and select the `eap7-app` entry. Note the Replicas: '2 pods' entry near the bottom of the page. We will use this later to scale down the application.  
 
-In another terminal, start a long-running transaction by running `./demo.sh add hello1`:
+
+In a new terminal, execute:
 ```shell
-% ./demo.sh add hello1                                                
+./demo.sh add hello
+```
+This will result in output like
+```shell
 *   Trying 18.189.230.211:80...
 * Connected to eap7-app-route-myproject.apps.cluster-hg5t5.hg5t5.sandbox478.opentlc.com (18.189.230.211) port 80 (#0)
 > POST /hello1 HTTP/1.1
@@ -136,28 +126,69 @@ In another terminal, start a long-running transaction by running `./demo.sh add 
 < HTTP/1.1 202 Accepted
 < content-type: application/octet-stream
 < content-length: 10
-< date: Mon, 03 Apr 2023 13:20:14 GMT
+< date: Thu, 11 May 2023 13:20:14 GMT
 < set-cookie: 6408e4ed2f24cda93bbdf4a4c2c125d7=7aa338a543a51ef9c0b44ddaf4ff37f2; path=/; HttpOnly
 < 
 * Connection #0 to host eap7-app-route-myproject.apps.cluster-hg5t5.hg5t5.sandbox478.opentlc.com left intact
-eap7-app-0%
+eap7-app-1%
 ```
-We see that this got accepted, and that this is running on the pod `eap7-app-0`. As mentioned earlier, this persisting of the entry happens in a background thread on the server and the transaction will not end until it times out (the timeout is 5 minutes) or it is released.
+Thus `eap7-app-1` was used to save the entry.
 
-In the OpenShift console, go to 'Installed Operators/JBoss EAP' Then on the 'WildFlyServer' tab, go to `eap7-app' and reduce the number of pods to zero. 
+Then the `list` command shows that both XA resources were successfully committed:
+```shell
+% ./demo.sh list              
+[{"hello":{"eap7-app-1":true}}]%                                                                                        
+```
+As described earlier, this shows that `hello` was added via the load-balanced host `eap7-app-1`, and the `true` indicates that both XA data sources committed successfully.
 
-In terminal containing the output from `oc get pods -w`, note that the `eap7-app-0` pods remains at `READY=1/1`.
+Next, we try to insert a new entry and freeze the second commit of the 2-phase commit. If this load-balanced request hits `eap7-app-0`, it will return a 409 HTTP Status code. If that happens, just try again until it succeeds. 
 
-In the other terminal run `./demo.sh release eap7-app-0` to release the transaction. 
+The command to do this is
+```shell
+./demo.sh freeze world
+```
+Once it succeeds, the output should look something like the following
+```shell
+*   Trying 3.12.75.153:80...
+* Connected to eap7-app-route-myproject.apps.cluster-77slv.77slv.sandbox2282.opentlc.com (3.12.75.153) port 80 (#0)
+> POST /freeze/world HTTP/1.1
+> Host: eap7-app-route-myproject.apps.cluster-77slv.77slv.sandbox2282.opentlc.com
+> User-Agent: curl/7.87.0
+> Accept: */*
+> 
+* Mark bundle as not supporting multiuse
+< HTTP/1.1 202 Accepted
+< content-type: application/octet-stream
+< content-length: 10
+< date: Thu, 11 May 2023 13:17:56 GMT
+< set-cookie: 6408e4ed2f24cda93bbdf4a4c2c125d7=cb182748c3ffc95045b457bc76a0d7d1; path=/; HttpOnly
+< 
+* Connection #0 to host eap7-app-route-myproject.apps.cluster-77slv.77slv.sandbox2282.opentlc.com left intact
+eap7-app-1%           
+```
+As earlier, we can see this request ended up being handled by pod `eap7-app-1`.
 
-In the terminal containing the output from `oc get pods -w`, you should now see that the `eap7-app-0` pod is allowed to scale down.
+In the logs for `eap7-app-1` we see some output from the byteman rule
+```shell
+13:17:56,463 INFO  [stdout] (EE-ManagedExecutorService-default-Thread-2) Starting countdown at 1
+13:17:56,465 INFO  [stdout] (EE-ManagedExecutorService-default-Thread-2) ********* topLevelCommit for java:jboss/datasources/demo-ds
+13:17:56,466 INFO  [stdout] (EE-ManagedExecutorService-default-Thread-2) ***** topLevelCommit: Freezing transaction for 240 seconds java:jboss/datasources/second-ds
+```
+This simply explains that the commit of the second XA resource will be delayed by 4 minutes.
 
-Before moving on to the next example, make sure the pod is up and running again
+Looking at the output of `./demo.sh list`, we see that the second entry ('world') that we added was not successfully committed across both XA resources, just the first one.
+```shell
+%         
+[{"hello":{"eap7-app-1":true}},{"world":{"eap7-app-1":false}}]%                                                                                                                                                                         
+```
 
+Now scale down the pod to one replica in the console.
 
-<!-- 
-## Running transaction blocks shutdown and is freed when Tx times out 
+The output from `./demo.sh list` will look the same.
 
-  As the above example isn't working the way I expected, am putting this one on hold 
--->
+In the `eap7-app-1` log, we will see the server stopping and starting again. The restart is done by the EAP operator, and is done in order to look for and recover XA transactions. A short while after this happens, you should see the output of `./demo.sh list` changes to indicate that the frozen transaction was successful (i.e. the earlier `false` is now `true`): 
+```shell
+[{"hello":{"eap7-app-1":true}},{"world":{"eap7-app-1":true}}]%     
+``` 
 
+This shows that the transaction recovery process has worked, and successfully committed the second XA resource.
