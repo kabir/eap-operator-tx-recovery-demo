@@ -12,18 +12,3 @@ spec:
         resources:
           requests:
             storage: 1Gi
-  env:
-    # Env vars to connect to PostgreSQL DB
-    - name: POSTGRESQL_DATABASE
-      value: sampledb
-    - name: POSTGRESQL_USER
-      value: admin
-    - name: POSTGRESQL_PASSWORD
-      value: admin
-    - name: POSTGRESQL_SERVICE_DEMO
-      value: postgresql-demo
-    - name: POSTGRESQL_SERVICE_SECOND
-      value: postgresql-second
-    # Is this actually needed?
-    - name: TX_RELEASE_DIRECTORY
-      value: /home/jboss
