@@ -6,9 +6,9 @@ spec:
   applicationImage: eap7-app:latest
   #applicationImage: eap7-app-byteman:latest
   replicas: 2
-  storage:
-    volumeClaimTemplate:
-      spec:
-        resources:
-          requests:
-            storage: 1Gi
+#  storage:
+#    volumeClaimTemplate:
+#      spec:
+#        resources:
+#          requests:
+#            storage: 1Gi
